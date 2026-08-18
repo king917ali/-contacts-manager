@@ -6,45 +6,92 @@ import difflib
 from datetime import datetime
 
 from kivy.app import App
+from kivy.core.window import Window
+from kivy.core.text import LabelBase
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.spinner import Spinner
+from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from kivy.metrics import dp
-from kivy.core.window import Window
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "contacts.db")
+CONFIG_FILE = os.path.join(BASE_DIR, "ftp_config.json")
+FONT = os.path.join(BASE_DIR, "NotoSansArabic.ttf")
+FONT_BOLD = os.path.join(BASE_DIR, "NotoSansArabicBold.ttf")
+
+LabelBase.register(name="Arabic", fn_regular=FONT, fn_bold=FONT_BOLD)
+AR = "Arabic"
 Window.softinput_mode = "resize"
 
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contacts.db")
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ftp_config.json")
-
 COUNTRY_CODES = [
-    ("+967", "اليمن"), ("+966", "السعودية"), ("+971", "الإمارات"),
-    ("+973", "البحرين"), ("+974", "قطر"), ("+968", "عمان"),
-    ("+965", "الكويت"), ("+20", "مصر"), ("+962", "الأردن"),
-    ("+963", "سوريا"), ("+961", "لبنان"), ("+970", "فلسطين"),
-    ("+212", "المغرب"), ("+213", "الجزائر"), ("+216", "تونس"),
-    ("+1", "أمريكا"), ("+44", "بريطانيا"), ("+33", "فرنسا"),
-    ("+49", "ألمانيا"), ("+90", "تركيا"), ("+92", "باكستان"),
-    ("+91", "الهند"), ("+86", "الصين"), ("+81", "اليابان"),
+    ("+967", "Yemen", "Yemen"),
+    ("+966", "Saudi Arabia", "Saudi Arabia"),
+    ("+971", "UAE", "UAE"),
+    ("+973", "Bahrain", "Bahrain"),
+    ("+974", "Qatar", "Qatar"),
+    ("+968", "Oman", "Oman"),
+    ("+965", "Kuwait", "Kuwait"),
+    ("+20", "Egypt", "Egypt"),
+    ("+962", "Jordan", "Jordan"),
+    ("+963", "Syria", "Syria"),
+    ("+961", "Lebanon", "Lebanon"),
+    ("+970", "Palestine", "Palestine"),
+    ("+212", "Morocco", "Morocco"),
+    ("+213", "Algeria", "Algeria"),
+    ("+216", "Tunisia", "Tunisia"),
+    ("+1", "USA", "USA"),
+    ("+44", "UK", "UK"),
+    ("+33", "France", "France"),
+    ("+49", "Germany", "Germany"),
+    ("+90", "Turkey", "Turkey"),
+    ("+92", "Pakistan", "Pakistan"),
+    ("+91", "India", "India"),
+    ("+86", "China", "China"),
+    ("+81", "Japan", "Japan"),
 ]
+
+COUNTRY_LABELS = {
+    "Yemen": "اليمن",
+    "Saudi Arabia": "السعودية",
+    "UAE": "الإمارات",
+    "Bahrain": "البحرين",
+    "Qatar": "قطر",
+    "Oman": "عمان",
+    "Kuwait": "الكويت",
+    "Egypt": "مصر",
+    "Jordan": "الأردن",
+    "Syria": "سوريا",
+    "Lebanon": "لبنان",
+    "Palestine": "فلسطين",
+    "Morocco": "المغرب",
+    "Algeria": "الجزائر",
+    "Tunisia": "تونس",
+    "USA": "أمريكا",
+    "UK": "بريطانيا",
+    "France": "فرنسا",
+    "Germany": "ألمانيا",
+    "Turkey": "تركيا",
+    "Pakistan": "باكستان",
+    "India": "الهند",
+    "China": "الصين",
+    "Japan": "اليابان",
+}
 
 CITIES = [
     "صنعاء", "عدن", "تعز", "الحديدة", "المكلا", "سيئون", "زنجبار",
     "تريم", "شبوة", "بيحان", "صعده", "الحجه", "عمران", "ذمار",
     "إب", "جبلة", "يافع", "لودر", "المحويه", "زبيد", "بيت الفقيه",
-    "الرياض", "جدة", "مكة المكرمة", "المدينة المنورة", "الدمام", "الظهران", "الخبر",
+    "الرياض", "جدة", "مكة المكرمة", "المدينة المنورة", "الدمام",
     "القاهرة", "الإسكندرية", "الجيزة", "الأقصر", "أسوان",
-    "أبو ظبي", "دبي", "الشارقة", "عجمان", "الدوحة", "المنامة", "مسقط",
-    "عمّان", "بغداد", "دمشق", "بيروت", "القدس", "رام الله",
-    "الدار البيضاء", "الرباط", "مراكش", "فاس", "طنجة",
-    "إسطنبول", "لندن", "باريس", "برلين", "روما", "مدريد",
-    "نيويورك", "طوكيو", "بكين", "كوالالمبور", "بانكوك",
+    "أبو ظبي", "دبي", "الشارقة", "عمّان", "بغداد", "دمشق", "بيروت",
+    "الدار البيضاء", "الرباط", "مراكش", "إسطنبول", "لندن", "باريس",
+    "نيويورك", "طوكيو", "بكين",
 ]
 
 CATEGORIES = [
@@ -53,7 +100,7 @@ CATEGORIES = [
     "صحة", "زراعة", "تغليف", "طباعة", "مطاعم", "فنادق",
     "شحن", "توصيل", "استيراد", "تصدير", "تجزئة", "جملة",
     "خدمات", "تصميم", "تسويق", "عقارات", "مقاولات", "صيانة",
-    "تنظيف", "أمن", "ذهب", "مجوهرات", "ألعاب", "رياضة",
+    "تنظيف", "ذهب", "مجوهرات",
 ]
 
 
@@ -73,7 +120,7 @@ def init_db():
 def get_all():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute("SELECT * FROM contacts ORDER BY name").fetchall()
+    rows = conn.execute("SELECT * FROM contacts ORDER BY id DESC").fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -124,66 +171,70 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2, ensure_ascii=False)
 
 
-def fuzzy_match(query, item):
-    q = query.lower().strip()
-    s = item.lower().strip()
-    if not q:
-        return 0
-    if q in s:
-        return 2.0
-    score = difflib.SequenceMatcher(None, q, s).ratio()
-    for part in s.split():
-        score = max(score, difflib.SequenceMatcher(None, q, part).ratio() * 0.8)
-    return score
+def ar_btn(text, color, cmd, width_hint=0.2):
+    return Button(
+        text=text, font_name=AR, font_size=dp(12), bold=True,
+        background_color=color, size_hint_x=width_hint, on_press=cmd
+    )
+
+
+def ar_label(text, size=dp(14), color=(0, 0, 0, 1), bold=False, halign="right"):
+    return Label(
+        text=text, font_name=AR, font_size=size,
+        color=color, bold=bold, halign=halign,
+        text_size=(None, None), valign="middle"
+    )
+
+
+def ar_input(hint, height=dp(42)):
+    return TextInput(
+        hint_text=hint, hint_font_name=AR,
+        font_name=AR, font_size=dp(14),
+        multiline=False, size_hint_y=None, height=height,
+        padding=[dp(10), dp(8)]
+    )
 
 
 class MainScreen(Screen):
     def __init__(self, **kw):
         super().__init__(**kw)
-        layout = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(8))
+        self.selected_id = None
+        root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(6))
 
-        header = BoxLayout(size_hint_y=None, height=dp(50))
-        header.add_widget(Label(text="مدير جهات الاتصال", font_size=dp(20), bold=True,
-                                 color=(1, 1, 1, 1), size_hint_x=0.6))
-        header.add_widget(Button(text="FTP", size_hint_x=0.2, font_size=dp(11),
-                                  background_color=(0.1, 0.45, 0.91, 1),
-                                  on_press=lambda x: setattr(self.manager, "current", "ftp")))
-        header.add_widget(Button(text="تصدير", size_hint_x=0.2, font_size=dp(11),
-                                  background_color=(0.4, 0.4, 0.4, 1),
-                                  on_press=self.export_csv))
-        layout.add_widget(header)
+        bg = BoxLayout(orientation="vertical", size_hint_y=None, height=dp(60),
+                       padding=[dp(10), dp(5)])
+        bg.add_widget(ar_label("مدير جهات الاتصال", size=dp(22), bold=True, color=(1,1,1,1), halign="center"))
+        root.add_widget(bg)
 
-        search_box = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(5))
-        self.search_input = TextInput(hint_text="بحث...", multiline=False,
-                                       font_size=dp(14), size_hint_x=0.6)
+        search = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(5))
+        self.search_input = ar_input("بحث بالاسم أو الرقم أو العنوان...")
         self.search_input.bind(text=self.on_search)
-        search_box.add_widget(self.search_input)
-        search_box.add_widget(Button(text="بحث", font_size=dp(12),
-                                      background_color=(0.1, 0.45, 0.91, 1),
-                                      size_hint_x=0.2, on_press=lambda x: self.do_search()))
-        search_box.add_widget(Button(text="مسح", font_size=dp(12),
-                                      background_color=(0.4, 0.4, 0.4, 1),
-                                      size_hint_x=0.2, on_press=self.clear_search))
-        layout.add_widget(search_box)
+        search.add_widget(self.search_input)
+        search.add_widget(ar_btn("بحث", (0.1, 0.45, 0.91, 1), lambda x: self.do_search(), 0.2))
+        search.add_widget(ar_btn("مسح", (0.5, 0.5, 0.5, 1), self.clear_search, 0.15))
+        root.add_widget(search)
 
-        self.contact_list = BoxLayout(orientation="vertical", spacing=dp(4))
+        self.contact_list = BoxLayout(orientation="vertical", spacing=dp(3), size_hint_y=None)
+        self.contact_list.bind(minimum_height=self.contact_list.setter("height"))
         scroll = ScrollView()
         scroll.add_widget(self.contact_list)
-        layout.add_widget(scroll)
+        root.add_widget(scroll)
 
-        btn_box = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(3))
-        for text, color, cmd in [
-            ("+ اضافة", (0.1, 0.45, 0.91, 1), self.add_new),
-            ("تعديل", (0.4, 0.4, 0.4, 1), self.edit_selected),
-            ("حذف", (0.85, 0.19, 0.15, 1), self.delete_sel),
-            ("اتصال", (0.0, 0.6, 0.0, 1), self.call_contact),
-            ("واتساب", (0.15, 0.83, 0.4, 1), self.open_wa),
-        ]:
-            btn_box.add_widget(Button(text=text, font_size=dp(11), bold=True,
-                                       background_color=color, on_press=cmd))
-        layout.add_widget(btn_box)
-        self.add_widget(layout)
-        self.selected_id = None
+        btns = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(3))
+        btns.add_widget(ar_btn("+ اضافة", (0.1, 0.45, 0.91, 1), self.add_new, 0.2))
+        btns.add_widget(ar_btn("تعديل", (0.3, 0.3, 0.3, 1), self.edit_sel, 0.2))
+        btns.add_widget(ar_btn("حذف", (0.85, 0.19, 0.15, 1), self.delete_sel, 0.2))
+        btns.add_widget(ar_btn("اتصال", (0.0, 0.55, 0.0, 1), self.call_contact, 0.2))
+        btns.add_widget(ar_btn("واتساب", (0.15, 0.83, 0.4, 1), self.open_wa, 0.2))
+        root.add_widget(btns)
+
+        nav = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(5))
+        nav.add_widget(ar_btn("النسخ الاحتياطي", (0.1, 0.45, 0.91, 1),
+                              lambda x: setattr(self.manager, "current", "ftp"), 0.5))
+        nav.add_widget(ar_btn("تصدير CSV", (0.3, 0.3, 0.3, 1), self.export_csv, 0.5))
+        root.add_widget(nav)
+
+        self.add_widget(root)
 
     def on_enter(self):
         Clock.schedule_once(lambda dt: self.load_list(), 0.1)
@@ -192,38 +243,49 @@ class MainScreen(Screen):
         self.contact_list.clear_widgets()
         if contacts is None:
             contacts = get_all()
+        if not contacts:
+            self.contact_list.add_widget(ar_label("لا توجد جهات اتصال", size=dp(16), color=(0.5,0.5,0.5,1)))
+            return
         for c in contacts:
-            row = self._make_row(c)
-            self.contact_list.add_widget(row)
+            self.contact_list.add_widget(self._make_row(c))
 
     def _make_row(self, c):
-        box = BoxLayout(orientation="vertical", size_hint_y=None, height=dp(70),
-                        padding=[dp(8), dp(4)], spacing=dp(2))
-        bg = [0.93, 0.95, 0.98, 1] if self.selected_id == c["id"] else [1, 1, 1, 1]
+        is_sel = self.selected_id == c["id"]
+        bg_color = (0.88, 0.92, 1, 1) if is_sel else (1, 1, 1, 1)
+        border_color = (0.1, 0.45, 0.91, 1) if is_sel else (0.85, 0.85, 0.85, 1)
+
+        box = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(72),
+                        padding=[dp(8), dp(6)], spacing=dp(8))
         box.canvas.before.clear()
         with box.canvas.before:
-            from kivy.graphics import Color, RoundedRectangle
-            Color(*bg)
-            RoundedRectangle(pos=box.pos, size=box.size, radius=[dp(8)])
+            from kivy.graphics import Color, RoundedRectangle, Line
+            Color(*bg_color)
+            RoundedRectangle(pos=box.pos, size=box.size, radius=[dp(10)])
+            Color(*border_color)
+            Line(rounded_rectangle=(box.x, box.y, box.width, box.height, dp(10)), width=dp(1))
 
-        top = BoxLayout(orientation="horizontal")
-        top.add_widget(Label(text=c["name"], font_size=dp(14), bold=True,
-                              color=(0, 0, 0, 1), halign="right", text_size=(None, None),
-                              size_hint_x=0.5))
-        phone_txt = c["phone"] or ""
-        top.add_widget(Label(text=phone_txt, font_size=dp(12),
-                              color=(0.33, 0.33, 0.33, 1), halign="left",
-                              size_hint_x=0.5))
-
-        bot = BoxLayout(orientation="horizontal")
+        info = BoxLayout(orientation="vertical", spacing=dp(2))
+        phone = c["phone"] or ""
         addr = c["address"] or ""
         cat = c["category"] or ""
-        bot.add_widget(Label(text=f"{cat}  |  {addr}", font_size=dp(10),
-                              color=(0.5, 0.5, 0.5, 1), halign="right",
-                              text_size=(None, None), size_hint_x=1))
+        name_lbl = ar_label(c["name"], size=dp(15), bold=True, halign="right")
+        name_lbl.size_hint_x = 1
+        info.add_widget(name_lbl)
 
-        box.add_widget(top)
-        box.add_widget(bot)
+        detail_text = f"{phone}"
+        if cat:
+            detail_text += f"  |  {cat}"
+        if addr:
+            detail_text += f"  |  {addr}"
+        det = ar_label(detail_text, size=dp(11), color=(0.4, 0.4, 0.4, 1), halign="right")
+        det.size_hint_x = 1
+        info.add_widget(det)
+        box.add_widget(info)
+
+        call_btn = Button(text=" اتصال ", font_name=AR, font_size=dp(11),
+                          background_color=(0.0, 0.6, 0.0, 1), size_hint_x=None, width=dp(70))
+        call_btn.bind(on_press=lambda inst, ph=phone: self._call(ph))
+        box.add_widget(call_btn)
 
         def on_touch(instance, touch, cid=c["id"]):
             if instance.collide_point(*touch.pos):
@@ -233,15 +295,19 @@ class MainScreen(Screen):
         box.bind(on_touch_down=on_touch)
         return box
 
-    def on_search(self, instance, text):
+    def _call(self, phone):
+        if phone:
+            import webbrowser
+            webbrowser.open(f"tel:{phone}")
+
+    def on_search(self, inst, text):
         if len(text) >= 1:
-            results = search_db(text)
-            self.load_list(results)
+            self.load_list(search_db(text))
 
     def do_search(self):
-        text = self.search_input.text.strip()
-        if text:
-            self.load_list(search_db(text))
+        t = self.search_input.text.strip()
+        if t:
+            self.load_list(search_db(t))
 
     def clear_search(self, *a):
         self.search_input.text = ""
@@ -252,7 +318,7 @@ class MainScreen(Screen):
         self.manager.get_screen("add").clear_form()
         self.manager.current = "add"
 
-    def edit_selected(self, *a):
+    def edit_sel(self, *a):
         if not self.selected_id:
             return
         self.manager.get_screen("add").editing_id = self.selected_id
@@ -265,23 +331,10 @@ class MainScreen(Screen):
         self.selected_id = None
         self.load_list()
 
-    def open_wa(self, *a):
-        if not self.selected_id:
-            return
-        contacts = get_all()
-        for c in contacts:
-            if c["id"] == self.selected_id:
-                phone = (c["phone"] or "").replace("+", "").replace(" ", "")
-                if phone:
-                    import webbrowser
-                    webbrowser.open(f"https://wa.me/{phone}")
-                break
-
     def call_contact(self, *a):
         if not self.selected_id:
             return
-        contacts = get_all()
-        for c in contacts:
+        for c in get_all():
             if c["id"] == self.selected_id:
                 phone = (c["phone"] or "").strip()
                 if phone:
@@ -289,13 +342,19 @@ class MainScreen(Screen):
                     webbrowser.open(f"tel:{phone}")
                 break
 
+    def open_wa(self, *a):
+        if not self.selected_id:
+            return
+        for c in get_all():
+            if c["id"] == self.selected_id:
+                phone = (c["phone"] or "").replace("+", "").replace(" ", "")
+                if phone:
+                    import webbrowser
+                    webbrowser.open(f"https://wa.me/{phone}")
+                break
+
     def export_csv(self, *a):
-        from kivy.utils import platform
-        if platform == "android":
-            from android.storage import app_storage_path
-            path = os.path.join(app_storage_path(), "contacts_export.csv")
-        else:
-            path = "contacts_export.csv"
+        path = os.path.join(BASE_DIR, "contacts_export.csv")
         contacts = get_all()
         with open(path, "w", encoding="utf-8-sig", newline="") as f:
             f.write("الاسم,رقم الهاتف,البريد,العنوان,التصنيف,ملاحظات\n")
@@ -307,50 +366,69 @@ class AddScreen(Screen):
     def __init__(self, **kw):
         super().__init__(**kw)
         self.editing_id = None
-        layout = BoxLayout(orientation="vertical", padding=dp(15), spacing=dp(8))
+        root = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(6))
 
-        top = BoxLayout(size_hint_y=None, height=dp(45))
-        top.add_widget(Button(text="رجوع", font_size=dp(12),
-                               background_color=(0.4, 0.4, 0.4, 1),
-                               on_press=lambda x: setattr(self.manager, "current", "main")))
-        top.add_widget(Label(text="بيانات جهة الاتصال", font_size=dp(16), bold=True,
-                              color=(0, 0, 0, 1)))
-        layout.add_widget(top)
+        top = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(5))
+        top.add_widget(ar_btn("رجوع", (0.5, 0.5, 0.5, 1),
+                              lambda x: setattr(self.manager, "current", "main"), 0.3))
+        top.add_widget(ar_label("بيانات جهة الاتصال", size=dp(18), bold=True, halign="center"))
+        root.add_widget(top)
 
-        self.name_in = self._field(layout, "اسم المورد / التاجر")
-        self.phone_in = self._field(layout, "رقم الهاتف (بدون مفتاح الدولة)")
-        self.email_in = self._field(layout, "البريد الإلكتروني")
-        self.address_in = self._field(layout, "العنوان (اقتراح تلقائي)")
-        self.category_in = self._field(layout, "التصنيف (اقتراح تلقائي)")
-        self.notes_in = self._field(layout, "ملاحظات")
+        scroll_inner = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(6))
+        scroll_inner.bind(minimum_height=scroll_inner.setter("height"))
 
-        code_box = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(5))
-        codes = [f"{c} {n}" for c, n in COUNTRY_CODES]
-        self.code_spinner = Spinner(text="+967 اليمن", values=codes,
-                                     size_hint_x=0.5, font_size=dp(12))
-        code_box.add_widget(Label(text="مفتاح الدولة:", font_size=dp(12),
-                                   color=(0, 0, 0, 1), size_hint_x=0.5))
+        self.name_in = ar_input("اسم المورد / التاجر")
+        self.name_in.size_hint_y = None
+        self.name_in.height = dp(45)
+        scroll_inner.add_widget(self.name_in)
+
+        code_box = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(5))
+        code_values = [f"{c[0]} - {COUNTRY_LABELS[c[1]]}" for c in COUNTRY_CODES]
+        self.code_spinner = Spinner(
+            text="+967 - اليمن", values=code_values,
+            font_name=AR, font_size=dp(12),
+            background_color=(0.1, 0.45, 0.91, 1)
+        )
+        code_box.add_widget(ar_label("مفتاح الدولة:", size=dp(12)))
         code_box.add_widget(self.code_spinner)
-        layout.add_widget(code_box)
+        scroll_inner.add_widget(code_box)
 
-        save_btn = Button(text="  حفظ  ", font_size=dp(16), bold=True,
-                           size_hint_y=None, height=dp(50),
-                           background_color=(0.1, 0.45, 0.91, 1),
-                           on_press=self.save_it)
-        layout.add_widget(save_btn)
+        self.phone_in = ar_input("رقم الهاتف (بدون المفتاح)")
+        self.phone_in.size_hint_y = None
+        self.phone_in.height = dp(45)
+        scroll_inner.add_widget(self.phone_in)
 
-        scroll = ScrollView()
-        inner = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(5))
-        inner.bind(minimum_height=inner.setter("height"))
-        for child in list(layout.children):
-            pass
-        self.add_widget(layout)
+        self.email_in = ar_input("البريد الإلكتروني")
+        self.email_in.size_hint_y = None
+        self.email_in.height = dp(45)
+        scroll_inner.add_widget(self.email_in)
 
-    def _field(self, parent, hint):
-        ti = TextInput(hint_text=hint, multiline=False, font_size=dp(14),
-                       size_hint_y=None, height=dp(42), padding=[dp(8), dp(8)])
-        parent.add_widget(ti)
-        return ti
+        self.address_in = ar_input("العنوان")
+        self.address_in.size_hint_y = None
+        self.address_in.height = dp(45)
+        scroll_inner.add_widget(self.address_in)
+
+        self.category_in = ar_input("التصنيف")
+        self.category_in.size_hint_y = None
+        self.category_in.height = dp(45)
+        scroll_inner.add_widget(self.category_in)
+
+        self.notes_in = ar_input("ملاحظات")
+        self.notes_in.size_hint_y = None
+        self.notes_in.height = dp(45)
+        scroll_inner.add_widget(self.notes_in)
+
+        save_btn = Button(
+            text="حفظ", font_name=AR, font_size=dp(18), bold=True,
+            size_hint_y=None, height=dp(55),
+            background_color=(0.1, 0.45, 0.91, 1), on_press=self.save_it
+        )
+        scroll_inner.add_widget(save_btn)
+
+        sv = ScrollView()
+        sv.add_widget(scroll_inner)
+        root.add_widget(sv)
+        self.add_widget(root)
 
     def clear_form(self):
         self.name_in.text = ""
@@ -359,24 +437,29 @@ class AddScreen(Screen):
         self.address_in.text = ""
         self.category_in.text = ""
         self.notes_in.text = ""
-        self.code_spinner.text = "+967 اليمن"
+        self.code_spinner.text = "+967 - اليمن"
 
     def save_it(self, *a):
         name = self.name_in.text.strip()
         if not name:
             return
-        code = self.code_spinner.text.split()[0]
+        code = self.code_spinner.text.split(" - ")[0].strip()
         phone = self.phone_in.text.strip().replace(" ", "")
         full_phone = f"{code}{phone}" if phone else ""
-        add_contact(name, full_phone, self.email_in.text.strip(),
-                    self.address_in.text.strip(), self.category_in.text.strip(),
-                    self.notes_in.text.strip())
+
+        if self.editing_id:
+            update_contact(self.editing_id, name, full_phone,
+                           self.email_in.text.strip(), self.address_in.text.strip(),
+                           self.category_in.text.strip(), self.notes_in.text.strip())
+        else:
+            add_contact(name, full_phone, self.email_in.text.strip(),
+                        self.address_in.text.strip(), self.category_in.text.strip(),
+                        self.notes_in.text.strip())
         self.manager.current = "main"
 
     def on_enter(self):
         if self.editing_id:
-            contacts = get_all()
-            for c in contacts:
+            for c in get_all():
                 if c["id"] == self.editing_id:
                     self.name_in.text = c["name"]
                     self.email_in.text = c["email"] or ""
@@ -384,9 +467,9 @@ class AddScreen(Screen):
                     self.category_in.text = c["category"] or ""
                     self.notes_in.text = c["notes"] or ""
                     phone = c["phone"] or ""
-                    for code, name in COUNTRY_CODES:
+                    for code, eng, _ in COUNTRY_CODES:
                         if phone.startswith(code):
-                            self.code_spinner.text = f"{code} {name}"
+                            self.code_spinner.text = f"{code} - {COUNTRY_LABELS[eng]}"
                             self.phone_in.text = phone[len(code):]
                             break
                     else:
@@ -397,60 +480,49 @@ class AddScreen(Screen):
 class FTPScreen(Screen):
     def __init__(self, **kw):
         super().__init__(**kw)
-        layout = BoxLayout(orientation="vertical", padding=dp(15), spacing=dp(8))
+        root = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(6))
 
-        top = BoxLayout(size_hint_y=None, height=dp(45))
-        top.add_widget(Button(text="رجوع", font_size=dp(12),
-                               background_color=(0.4, 0.4, 0.4, 1),
-                               on_press=lambda x: setattr(self.manager, "current", "main")))
-        top.add_widget(Label(text="النسخ الاحتياطي FTP", font_size=dp(16), bold=True,
-                              color=(0, 0, 0, 1)))
-        layout.add_widget(top)
+        top = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(5))
+        top.add_widget(ar_btn("رجوع", (0.5, 0.5, 0.5, 1),
+                              lambda x: setattr(self.manager, "current", "main"), 0.3))
+        top.add_widget(ar_label("النسخ الاحتياطي", size=dp(18), bold=True, halign="center"))
+        root.add_widget(top)
 
         cfg = load_config()
-        self.host_in = self._field(layout, "عنوان الخادم (Host)")
+        self.host_in = ar_input("عنوان الخادم (Host)")
         self.host_in.text = cfg.get("host", "")
-        self.port_in = self._field(layout, "المنفذ (Port)")
+        root.add_widget(self.host_in)
+
+        self.port_in = ar_input("المنفذ (Port)")
         self.port_in.text = cfg.get("port", "21")
-        self.user_in = self._field(layout, "اسم المستخدم")
+        root.add_widget(self.port_in)
+
+        self.user_in = ar_input("اسم المستخدم")
         self.user_in.text = cfg.get("username", "")
-        self.pass_in = self._field(layout, "كلمة المرور")
+        root.add_widget(self.user_in)
+
+        self.pass_in = ar_input("كلمة المرور")
         self.pass_in.password = True
         self.pass_in.text = cfg.get("password", "")
-        self.dir_in = self._field(layout, "المجلد البعيد")
+        root.add_widget(self.pass_in)
+
+        self.dir_in = ar_input("المجلد البعيد")
         self.dir_in.text = cfg.get("remote_dir", "/")
+        root.add_widget(self.dir_in)
 
-        btn_box = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(5))
-        btn_box.add_widget(Button(text="اختبار", font_size=dp(12),
-                                   background_color=(0.4, 0.4, 0.4, 1),
-                                   on_press=self.test_conn))
-        btn_box.add_widget(Button(text="نسخ احتياطي", font_size=dp(12), bold=True,
-                                   background_color=(0.1, 0.45, 0.91, 1),
-                                   on_press=self.do_backup))
-        btn_box.add_widget(Button(text="استعادة", font_size=dp(12),
-                                   background_color=(0.85, 0.19, 0.15, 1),
-                                   on_press=self.do_restore))
-        btn_box.add_widget(Button(text="حفظ", font_size=dp(12),
-                                   background_color=(0.15, 0.83, 0.4, 1),
-                                   on_press=self.save_cfg))
-        layout.add_widget(btn_box)
+        btns = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(4))
+        btns.add_widget(ar_btn("اختبار", (0.5, 0.5, 0.5, 1), self.test_conn, 0.25))
+        btns.add_widget(ar_btn("نسخ احتياطي", (0.1, 0.45, 0.91, 1), self.do_backup, 0.25))
+        btns.add_widget(ar_btn("استعادة", (0.85, 0.19, 0.15, 1), self.do_restore, 0.25))
+        btns.add_widget(ar_btn("حفظ", (0.0, 0.6, 0.0, 1), self.save_cfg, 0.25))
+        root.add_widget(btns)
 
-        self.status = Label(text="", font_size=dp(11), color=(0.3, 0.3, 0.3, 1),
-                             size_hint_y=None, height=dp(30))
-        layout.add_widget(self.status)
+        self.status = ar_label("", size=dp(12), color=(0.3, 0.3, 0.3, 1))
+        self.status.size_hint_y = None
+        self.status.height = dp(30)
+        root.add_widget(self.status)
 
-        self.backups_list = BoxLayout(orientation="vertical", spacing=dp(3))
-        scroll = ScrollView()
-        scroll.add_widget(self.backups_list)
-        layout.add_widget(scroll)
-
-        self.add_widget(layout)
-
-    def _field(self, parent, hint):
-        ti = TextInput(hint_text=hint, multiline=False, font_size=dp(13),
-                       size_hint_y=None, height=dp(38), padding=[dp(8), dp(8)])
-        parent.add_widget(ti)
-        return ti
+        self.add_widget(root)
 
     def _cfg(self):
         return {
