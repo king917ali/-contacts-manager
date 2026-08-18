@@ -171,14 +171,15 @@ class MainScreen(Screen):
         scroll.add_widget(self.contact_list)
         layout.add_widget(scroll)
 
-        btn_box = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(5))
+        btn_box = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(3))
         for text, color, cmd in [
             ("+ اضافة", (0.1, 0.45, 0.91, 1), self.add_new),
             ("تعديل", (0.4, 0.4, 0.4, 1), self.edit_selected),
             ("حذف", (0.85, 0.19, 0.15, 1), self.delete_sel),
+            ("اتصال", (0.0, 0.6, 0.0, 1), self.call_contact),
             ("واتساب", (0.15, 0.83, 0.4, 1), self.open_wa),
         ]:
-            btn_box.add_widget(Button(text=text, font_size=dp(12), bold=True,
+            btn_box.add_widget(Button(text=text, font_size=dp(11), bold=True,
                                        background_color=color, on_press=cmd))
         layout.add_widget(btn_box)
         self.add_widget(layout)
@@ -267,13 +268,25 @@ class MainScreen(Screen):
     def open_wa(self, *a):
         if not self.selected_id:
             return
-        import webbrowser
         contacts = get_all()
         for c in contacts:
             if c["id"] == self.selected_id:
                 phone = (c["phone"] or "").replace("+", "").replace(" ", "")
                 if phone:
+                    import webbrowser
                     webbrowser.open(f"https://wa.me/{phone}")
+                break
+
+    def call_contact(self, *a):
+        if not self.selected_id:
+            return
+        contacts = get_all()
+        for c in contacts:
+            if c["id"] == self.selected_id:
+                phone = (c["phone"] or "").strip()
+                if phone:
+                    import webbrowser
+                    webbrowser.open(f"tel:{phone}")
                 break
 
     def export_csv(self, *a):
