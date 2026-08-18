@@ -18,15 +18,27 @@ from kivy.uix.spinner import Spinner
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from kivy.metrics import dp
+from kivy.utils import platform as kivy_platform
+from kivy.resources import resource_find
+try:
+    from android.storage import app_storage_path
+    BASE_DIR = app_storage_path()
+except Exception:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "contacts.db")
 CONFIG_FILE = os.path.join(BASE_DIR, "ftp_config.json")
-FONT = os.path.join(BASE_DIR, "NotoSansArabic.ttf")
-FONT_BOLD = os.path.join(BASE_DIR, "NotoSansArabicBold.ttf")
 
-LabelBase.register(name="Arabic", fn_regular=FONT, fn_bold=FONT_BOLD)
-AR = "Arabic"
+AR = "Sans"
+try:
+    font_regular = resource_find("NotoSansArabic.ttf")
+    font_bold = resource_find("NotoSansArabicBold.ttf")
+    if font_regular and os.path.exists(font_regular):
+        LabelBase.register(name="Arabic", fn_regular=font_regular, fn_bold=font_bold or font_regular)
+        AR = "Arabic"
+except Exception:
+    pass
+
 Window.softinput_mode = "resize"
 
 COUNTRY_CODES = [
