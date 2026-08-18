@@ -17,6 +17,7 @@ android.release_artifact = apk
 p4a.branch = develop
 android.allow_backup = 1
 android.logcat = 0
+android.accept_sdk_license = True
 
 [buildozer]
 log_level = 2
