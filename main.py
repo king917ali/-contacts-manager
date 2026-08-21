@@ -30,14 +30,18 @@ DB_FILE = os.path.join(BASE_DIR, "contacts.db")
 CONFIG_FILE = os.path.join(BASE_DIR, "ftp_config.json")
 
 AR = "Sans"
-try:
-    fr = resource_find("NotoSansArabic.ttf")
-    fb = resource_find("NotoSansArabicBold.ttf")
-    if fr and os.path.exists(fr):
-        LabelBase.register(name="Arabic", fn_regular=fr, fn_bold=(fb if fb and os.path.exists(fb) else fr))
-        AR = "Arabic"
-except Exception:
-    pass
+
+
+def _register_fonts():
+    global AR
+    try:
+        fr = resource_find("NotoSansArabic.ttf")
+        fb = resource_find("NotoSansArabicBold.ttf")
+        if fr and os.path.exists(fr):
+            LabelBase.register(name="Arabic", fn_regular=fr, fn_bold=(fb if fb and os.path.exists(fb) else fr))
+            AR = "Arabic"
+    except Exception:
+        pass
 
 Window.softinput_mode = "resize"
 
@@ -714,6 +718,7 @@ def _save_crash(err_text):
 class ContactManagerApp(App):
     def build(self):
         self.title = "مدير جهات الاتصال"
+        _register_fonts()
         try:
             init_db()
         except Exception:
