@@ -2,7 +2,6 @@ import os
 import json
 import ftplib
 import sqlite3
-import difflib
 from datetime import datetime
 
 from kivy.app import App
@@ -15,11 +14,12 @@ from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.spinner import Spinner
-from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from kivy.metrics import dp
 from kivy.utils import platform as kivy_platform
 from kivy.resources import resource_find
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
+
 try:
     from android.storage import app_storage_path
     BASE_DIR = app_storage_path()
@@ -31,69 +31,28 @@ CONFIG_FILE = os.path.join(BASE_DIR, "ftp_config.json")
 
 AR = "Sans"
 try:
-    font_regular = resource_find("NotoSansArabic.ttf")
-    font_bold = resource_find("NotoSansArabicBold.ttf")
-    if font_regular and os.path.exists(font_regular):
-        LabelBase.register(name="Arabic", fn_regular=font_regular, fn_bold=font_bold or font_regular)
+    fr = resource_find("NotoSansArabic.ttf")
+    fb = resource_find("NotoSansArabicBold.ttf")
+    if fr and os.path.exists(fr):
+        LabelBase.register(name="Arabic", fn_regular=fr, fn_bold=(fb if fb and os.path.exists(fb) else fr))
         AR = "Arabic"
 except Exception:
     pass
 
 Window.softinput_mode = "resize"
 
-COUNTRY_CODES = [
-    ("+967", "Yemen", "Yemen"),
-    ("+966", "Saudi Arabia", "Saudi Arabia"),
-    ("+971", "UAE", "UAE"),
-    ("+973", "Bahrain", "Bahrain"),
-    ("+974", "Qatar", "Qatar"),
-    ("+968", "Oman", "Oman"),
-    ("+965", "Kuwait", "Kuwait"),
-    ("+20", "Egypt", "Egypt"),
-    ("+962", "Jordan", "Jordan"),
-    ("+963", "Syria", "Syria"),
-    ("+961", "Lebanon", "Lebanon"),
-    ("+970", "Palestine", "Palestine"),
-    ("+212", "Morocco", "Morocco"),
-    ("+213", "Algeria", "Algeria"),
-    ("+216", "Tunisia", "Tunisia"),
-    ("+1", "USA", "USA"),
-    ("+44", "UK", "UK"),
-    ("+33", "France", "France"),
-    ("+49", "Germany", "Germany"),
-    ("+90", "Turkey", "Turkey"),
-    ("+92", "Pakistan", "Pakistan"),
-    ("+91", "India", "India"),
-    ("+86", "China", "China"),
-    ("+81", "Japan", "Japan"),
-]
+IS_ANDROID = (kivy_platform == "android")
 
-COUNTRY_LABELS = {
-    "Yemen": "اليمن",
-    "Saudi Arabia": "السعودية",
-    "UAE": "الإمارات",
-    "Bahrain": "البحرين",
-    "Qatar": "قطر",
-    "Oman": "عمان",
-    "Kuwait": "الكويت",
-    "Egypt": "مصر",
-    "Jordan": "الأردن",
-    "Syria": "سوريا",
-    "Lebanon": "لبنان",
-    "Palestine": "فلسطين",
-    "Morocco": "المغرب",
-    "Algeria": "الجزائر",
-    "Tunisia": "تونس",
-    "USA": "أمريكا",
-    "UK": "بريطانيا",
-    "France": "فرنسا",
-    "Germany": "ألمانيا",
-    "Turkey": "تركيا",
-    "Pakistan": "باكستان",
-    "India": "الهند",
-    "China": "الصين",
-    "Japan": "اليابان",
-}
+COUNTRY_CODES = [
+    ("+967", "اليمن"), ("+966", "السعودية"), ("+971", "الإمارات"),
+    ("+973", "البحرين"), ("+974", "قطر"), ("+968", "عمان"),
+    ("+965", "الكويت"), ("+20", "مصر"), ("+962", "الأردن"),
+    ("+963", "سوريا"), ("+961", "لبنان"), ("+970", "فلسطين"),
+    ("+212", "المغرب"), ("+213", "الجزائر"), ("+216", "تونس"),
+    ("+1", "أمريكا"), ("+44", "بريطانيا"), ("+33", "فرنسا"),
+    ("+49", "ألمانيا"), ("+90", "تركيا"), ("+92", "باكستان"),
+    ("+91", "الهند"), ("+86", "الصين"), ("+81", "اليابان"),
+]
 
 CITIES = [
     "صنعاء", "عدن", "تعز", "الحديدة", "المكلا", "سيئون", "زنجبار",
@@ -103,7 +62,6 @@ CITIES = [
     "القاهرة", "الإسكندرية", "الجيزة", "الأقصر", "أسوان",
     "أبو ظبي", "دبي", "الشارقة", "عمّان", "بغداد", "دمشق", "بيروت",
     "الدار البيضاء", "الرباط", "مراكش", "إسطنبول", "لندن", "باريس",
-    "نيويورك", "طوكيو", "بكين",
 ]
 
 CATEGORIES = [
@@ -140,8 +98,9 @@ def get_all():
 def search_db(q):
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
-    t = f"%{q}%"
-    rows = conn.execute("""SELECT * FROM contacts WHERE name LIKE ? OR phone LIKE ?
+    t = "%" + q + "%"
+    rows = conn.execute(
+        """SELECT * FROM contacts WHERE name LIKE ? OR phone LIKE ?
         OR email LIKE ? OR address LIKE ? OR category LIKE ? OR notes LIKE ?
         ORDER BY name""", (t, t, t, t, t, t)).fetchall()
     conn.close()
@@ -172,275 +131,355 @@ def delete_contact(cid):
 
 
 def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
     return {}
 
 
 def save_config(cfg):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
 
-def ar_btn(text, color, cmd, width_hint=0.2):
-    return Button(
-        text=text, font_name=AR, font_size=dp(12), bold=True,
-        background_color=color, size_hint_x=width_hint, on_press=cmd
-    )
+def open_url(url):
+    try:
+        if IS_ANDROID:
+            from jnius import autoclass
+            Intent = autoclass("android.content.Intent")
+            Uri = autoclass("android.net.Uri")
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            PythonActivity.mActivity.startActivity(intent)
+        else:
+            import webbrowser
+            webbrowser.open(url)
+    except Exception:
+        try:
+            import webbrowser
+            webbrowser.open(url)
+        except Exception:
+            pass
 
 
-def ar_label(text, size=dp(14), color=(0, 0, 0, 1), bold=False, halign="right"):
-    return Label(
-        text=text, font_name=AR, font_size=size,
-        color=color, bold=bold, halign=halign,
-        text_size=(None, None), valign="middle"
-    )
+def call_phone(phone):
+    if not phone:
+        return
+    try:
+        if IS_ANDROID:
+            from jnius import autoclass
+            Intent = autoclass("android.content.Intent")
+            Uri = autoclass("android.net.Uri")
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phone))
+            PythonActivity.mActivity.startActivity(intent)
+        else:
+            import webbrowser
+            webbrowser.open("tel:" + phone)
+    except Exception:
+        try:
+            import webbrowser
+            webbrowser.open("tel:" + phone)
+        except Exception:
+            pass
 
 
-def ar_input(hint, height=dp(42)):
-    return TextInput(
-        hint_text=hint, hint_font_name=AR,
-        font_name=AR, font_size=dp(14),
-        multiline=False, size_hint_y=None, height=height,
-        padding=[dp(10), dp(8)]
-    )
+def ar_btn(text, color, cmd, width_hint=0.2, height=None):
+    b = Button(text=text, font_name=AR, font_size=dp(12), bold=True,
+               background_color=color, size_hint_x=width_hint)
+    if height:
+        b.size_hint_y = None
+        b.height = height
+    b.bind(on_press=cmd)
+    return b
+
+
+def ar_label(text, size=None, color=(0, 0, 0, 1), bold=False, halign="right"):
+    lbl = Label(text=text, font_name=AR,
+                font_size=size if size else dp(14),
+                color=color, bold=bold, halign=halign, valign="middle")
+    lbl.bind(size=lambda inst, val: setattr(inst, "text_size", val))
+    return lbl
+
+
+def ar_input(hint, height=None):
+    ti = TextInput(hint_text=hint, hint_font_name=AR,
+                   font_name=AR, font_size=dp(14),
+                   multiline=False, size_hint_y=None,
+                   height=height if height else dp(42),
+                   padding=[dp(10), dp(8)])
+    return ti
 
 
 class MainScreen(Screen):
     def __init__(self, **kw):
         super().__init__(**kw)
         self.selected_id = None
-        root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(6))
+        root = BoxLayout(orientation="vertical", padding=dp(8), spacing=dp(6))
 
-        bg = BoxLayout(orientation="vertical", size_hint_y=None, height=dp(60),
-                       padding=[dp(10), dp(5)])
-        bg.add_widget(ar_label("مدير جهات الاتصال", size=dp(22), bold=True, color=(1,1,1,1), halign="center"))
-        root.add_widget(bg)
+        header = BoxLayout(size_hint_y=None, height=dp(56), padding=[dp(12), dp(8)])
+        with header.canvas.before:
+            Color(0.10, 0.45, 0.91, 1)
+            header.bg_rect = Rectangle(pos=header.pos, size=header.size)
+        header.bind(pos=lambda i, v: setattr(header.bg_rect, "pos", v),
+                    size=lambda i, v: setattr(header.bg_rect, "size", v))
+        title = ar_label("مدير جهات الاتصال", size=dp(20), bold=True,
+                         color=(1, 1, 1, 1), halign="center")
+        header.add_widget(title)
+        root.add_widget(header)
 
         search = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(5))
-        self.search_input = ar_input("بحث بالاسم أو الرقم أو العنوان...")
+        self.search_input = ar_input("بحث...")
         self.search_input.bind(text=self.on_search)
         search.add_widget(self.search_input)
-        search.add_widget(ar_btn("بحث", (0.1, 0.45, 0.91, 1), lambda x: self.do_search(), 0.2))
-        search.add_widget(ar_btn("مسح", (0.5, 0.5, 0.5, 1), self.clear_search, 0.15))
+        search.add_widget(ar_btn("مسح", (0.45, 0.45, 0.45, 1), self.clear_search, 0.18))
         root.add_widget(search)
 
-        self.contact_list = BoxLayout(orientation="vertical", spacing=dp(3), size_hint_y=None)
+        self.contact_list = BoxLayout(orientation="vertical", spacing=dp(4), size_hint_y=None)
         self.contact_list.bind(minimum_height=self.contact_list.setter("height"))
-        scroll = ScrollView()
+        scroll = ScrollView(bar_width=dp(4))
         scroll.add_widget(self.contact_list)
         root.add_widget(scroll)
 
-        btns = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(3))
-        btns.add_widget(ar_btn("+ اضافة", (0.1, 0.45, 0.91, 1), self.add_new, 0.2))
-        btns.add_widget(ar_btn("تعديل", (0.3, 0.3, 0.3, 1), self.edit_sel, 0.2))
-        btns.add_widget(ar_btn("حذف", (0.85, 0.19, 0.15, 1), self.delete_sel, 0.2))
-        btns.add_widget(ar_btn("اتصال", (0.0, 0.55, 0.0, 1), self.call_contact, 0.2))
-        btns.add_widget(ar_btn("واتساب", (0.15, 0.83, 0.4, 1), self.open_wa, 0.2))
+        btns = BoxLayout(size_hint_y=None, height=dp(52), spacing=dp(3))
+        btns.add_widget(ar_btn("+ اضافة", (0.10, 0.45, 0.91, 1), self.add_new, 0.24))
+        btns.add_widget(ar_btn("تعديل", (0.35, 0.35, 0.35, 1), self.edit_sel, 0.19))
+        btns.add_widget(ar_btn("حذف", (0.85, 0.19, 0.15, 1), self.delete_sel, 0.19))
+        btns.add_widget(ar_btn("اتصال", (0.0, 0.55, 0.15, 1), self.call_contact, 0.19))
+        btns.add_widget(ar_btn("واتساب", (0.15, 0.70, 0.30, 1), self.open_wa, 0.19))
         root.add_widget(btns)
 
-        nav = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(5))
-        nav.add_widget(ar_btn("النسخ الاحتياطي", (0.1, 0.45, 0.91, 1),
-                              lambda x: setattr(self.manager, "current", "ftp"), 0.5))
-        nav.add_widget(ar_btn("تصدير CSV", (0.3, 0.3, 0.3, 1), self.export_csv, 0.5))
+        nav = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(5))
+        nav.add_widget(ar_btn("نسخ احتياطي FTP", (0.10, 0.45, 0.91, 1), self.go_ftp, 0.55))
+        nav.add_widget(ar_btn("تصدير CSV", (0.35, 0.35, 0.35, 1), self.export_csv, 0.45))
         root.add_widget(nav)
 
         self.add_widget(root)
 
+    def go_ftp(self, *a):
+        self.manager.current = "ftp"
+
     def on_enter(self):
-        Clock.schedule_once(lambda dt: self.load_list(), 0.1)
+        Clock.schedule_once(lambda dt: self.load_list(), 0.05)
 
     def load_list(self, contacts=None):
         self.contact_list.clear_widgets()
-        if contacts is None:
-            contacts = get_all()
+        try:
+            if contacts is None:
+                contacts = get_all()
+        except Exception:
+            contacts = []
         if not contacts:
-            self.contact_list.add_widget(ar_label("لا توجد جهات اتصال", size=dp(16), color=(0.5,0.5,0.5,1)))
+            empty = ar_label("لا توجد جهات اتصال\nاضغط + اضافة لبدء التسجيل",
+                             size=dp(15), color=(0.5, 0.5, 0.5, 1), halign="center")
+            empty.size_hint_y = None
+            empty.height = dp(120)
+            self.contact_list.add_widget(empty)
             return
         for c in contacts:
             self.contact_list.add_widget(self._make_row(c))
 
     def _make_row(self, c):
-        is_sel = self.selected_id == c["id"]
-        bg_color = (0.88, 0.92, 1, 1) if is_sel else (1, 1, 1, 1)
-        border_color = (0.1, 0.45, 0.91, 1) if is_sel else (0.85, 0.85, 0.85, 1)
+        is_sel = (self.selected_id == c["id"])
+        bg_color = (0.87, 0.92, 1.0, 1) if is_sel else (1, 1, 1, 1)
+        border_color = (0.10, 0.45, 0.91, 1) if is_sel else (0.85, 0.85, 0.85, 1)
 
-        box = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(72),
-                        padding=[dp(8), dp(6)], spacing=dp(8))
-        box.canvas.before.clear()
+        box = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(74),
+                        padding=[dp(10), dp(6)], spacing=dp(8))
+
         with box.canvas.before:
-            from kivy.graphics import Color, RoundedRectangle, Line
-            Color(*bg_color)
-            RoundedRectangle(pos=box.pos, size=box.size, radius=[dp(10)])
-            Color(*border_color)
-            Line(rounded_rectangle=(box.x, box.y, box.width, box.height, dp(10)), width=dp(1))
+            bc = Color(*bg_color)
+            rr = RoundedRectangle(pos=box.pos, size=box.size, radius=[dp(10)])
+            lc = Color(*border_color)
+            ln = Line(rounded_rectangle=(box.x, box.y, box.width, box.height, dp(10)), width=dp(1))
+
+        def upd_pos(inst, val):
+            rr.pos = val
+            ln.rounded_rectangle = (val[0], val[1], inst.width, inst.height, dp(10))
+
+        def upd_size(inst, val):
+            rr.size = val
+            ln.rounded_rectangle = (inst.x, inst.y, val[0], val[1], dp(10))
+
+        box.bind(pos=upd_pos, size=upd_size)
 
         info = BoxLayout(orientation="vertical", spacing=dp(2))
-        phone = c["phone"] or ""
-        addr = c["address"] or ""
-        cat = c["category"] or ""
-        name_lbl = ar_label(c["name"], size=dp(15), bold=True, halign="right")
+        phone = c.get("phone") or ""
+        addr = c.get("address") or ""
+        cat = c.get("category") or ""
+
+        name_lbl = ar_label(str(c.get("name") or ""), size=dp(15), bold=True)
         name_lbl.size_hint_x = 1
         info.add_widget(name_lbl)
 
-        detail_text = f"{phone}"
+        detail = phone
         if cat:
-            detail_text += f"  |  {cat}"
+            detail += "  |  " + cat
         if addr:
-            detail_text += f"  |  {addr}"
-        det = ar_label(detail_text, size=dp(11), color=(0.4, 0.4, 0.4, 1), halign="right")
-        det.size_hint_x = 1
-        info.add_widget(det)
+            detail += "  |  " + addr
+        det_lbl = ar_label(detail, size=dp(11), color=(0.42, 0.42, 0.42, 1))
+        det_lbl.size_hint_x = 1
+        info.add_widget(det_lbl)
         box.add_widget(info)
 
-        call_btn = Button(text=" اتصال ", font_name=AR, font_size=dp(11),
-                          background_color=(0.0, 0.6, 0.0, 1), size_hint_x=None, width=dp(70))
-        call_btn.bind(on_press=lambda inst, ph=phone: self._call(ph))
+        call_btn = Button(text="اتصال", font_name=AR, font_size=dp(11), bold=True,
+                          background_color=(0.0, 0.55, 0.15, 1),
+                          size_hint_x=None, width=dp(72))
+        call_btn.bind(on_press=lambda inst, ph=phone: call_phone(ph))
         box.add_widget(call_btn)
 
         def on_touch(instance, touch, cid=c["id"]):
             if instance.collide_point(*touch.pos):
                 self.selected_id = cid
-                self.load_list()
+                Clock.schedule_once(lambda dt: self.load_list(), 0)
                 return True
+            return False
+
         box.bind(on_touch_down=on_touch)
         return box
 
-    def _call(self, phone):
-        if phone:
-            import webbrowser
-            webbrowser.open(f"tel:{phone}")
-
     def on_search(self, inst, text):
-        if len(text) >= 1:
-            self.load_list(search_db(text))
+        if len(text.strip()) >= 1:
+            try:
+                results = search_db(text.strip())
+            except Exception:
+                results = []
+            self.contact_list.clear_widgets()
+            for c in results:
+                self.contact_list.add_widget(self._make_row(c))
+        elif text == "":
+            Clock.schedule_once(lambda dt: self.load_list(), 0)
 
-    def do_search(self):
+    def do_search(self, *a):
         t = self.search_input.text.strip()
         if t:
             self.load_list(search_db(t))
 
     def clear_search(self, *a):
         self.search_input.text = ""
-        self.load_list()
+        Clock.schedule_once(lambda dt: self.load_list(), 0)
 
     def add_new(self, *a):
-        self.manager.get_screen("add").editing_id = None
-        self.manager.get_screen("add").clear_form()
+        scr = self.manager.get_screen("add")
+        scr.editing_id = None
+        scr.clear_form()
         self.manager.current = "add"
 
     def edit_sel(self, *a):
         if not self.selected_id:
             return
-        self.manager.get_screen("add").editing_id = self.selected_id
+        scr = self.manager.get_screen("add")
+        scr.editing_id = self.selected_id
         self.manager.current = "add"
 
     def delete_sel(self, *a):
         if not self.selected_id:
             return
-        delete_contact(self.selected_id)
+        try:
+            delete_contact(self.selected_id)
+        except Exception:
+            pass
         self.selected_id = None
-        self.load_list()
+        Clock.schedule_once(lambda dt: self.load_list(), 0)
+
+    def _get_selected_contact(self):
+        if not self.selected_id:
+            return None
+        try:
+            for c in get_all():
+                if c["id"] == self.selected_id:
+                    return c
+        except Exception:
+            pass
+        return None
 
     def call_contact(self, *a):
-        if not self.selected_id:
-            return
-        for c in get_all():
-            if c["id"] == self.selected_id:
-                phone = (c["phone"] or "").strip()
-                if phone:
-                    import webbrowser
-                    webbrowser.open(f"tel:{phone}")
-                break
+        c = self._get_selected_contact()
+        if c:
+            call_phone((c.get("phone") or "").strip())
 
     def open_wa(self, *a):
-        if not self.selected_id:
-            return
-        for c in get_all():
-            if c["id"] == self.selected_id:
-                phone = (c["phone"] or "").replace("+", "").replace(" ", "")
-                if phone:
-                    import webbrowser
-                    webbrowser.open(f"https://wa.me/{phone}")
-                break
+        c = self._get_selected_contact()
+        if c:
+            phone = (c.get("phone") or "").replace("+", "").replace(" ", "")
+            if phone:
+                open_url("https://wa.me/" + phone)
 
     def export_csv(self, *a):
-        path = os.path.join(BASE_DIR, "contacts_export.csv")
-        contacts = get_all()
-        with open(path, "w", encoding="utf-8-sig", newline="") as f:
-            f.write("الاسم,رقم الهاتف,البريد,العنوان,التصنيف,ملاحظات\n")
-            for c in contacts:
-                f.write(f'"{c["name"]}","{c["phone"]}","{c["email"]}","{c["address"]}","{c["category"]}","{c["notes"]}"\n')
+        try:
+            path = os.path.join(BASE_DIR, "contacts_export.csv")
+            contacts = get_all()
+            with open(path, "w", encoding="utf-8-sig", newline="") as f:
+                f.write("name,phone,email,address,category,notes\n")
+                for c in contacts:
+                    f.write('"%s","%s","%s","%s","%s","%s"\n' % (
+                        c.get("name") or "", c.get("phone") or "",
+                        c.get("email") or "", c.get("address") or "",
+                        c.get("category") or "", c.get("notes") or ""))
+        except Exception:
+            pass
 
 
 class AddScreen(Screen):
     def __init__(self, **kw):
         super().__init__(**kw)
         self.editing_id = None
-        root = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(6))
+        root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(6))
 
         top = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(5))
-        top.add_widget(ar_btn("رجوع", (0.5, 0.5, 0.5, 1),
-                              lambda x: setattr(self.manager, "current", "main"), 0.3))
-        top.add_widget(ar_label("بيانات جهة الاتصال", size=dp(18), bold=True, halign="center"))
+        top.add_widget(ar_btn("رجوع", (0.45, 0.45, 0.45, 1), self.go_back, 0.25))
+        ttl = ar_label("بيانات جهة الاتصال", size=dp(17), bold=True, halign="center")
+        top.add_widget(ttl)
         root.add_widget(top)
 
-        scroll_inner = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(6))
-        scroll_inner.bind(minimum_height=scroll_inner.setter("height"))
+        inner = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(6))
+        inner.bind(minimum_height=inner.setter("height"))
 
-        self.name_in = ar_input("اسم المورد / التاجر")
-        self.name_in.size_hint_y = None
-        self.name_in.height = dp(45)
-        scroll_inner.add_widget(self.name_in)
+        self.name_in = ar_input("اسم المورد / التاجر", dp(46))
+        inner.add_widget(self.name_in)
 
-        code_box = BoxLayout(size_hint_y=None, height=dp(45), spacing=dp(5))
-        code_values = [f"{c[0]} - {COUNTRY_LABELS[c[1]]}" for c in COUNTRY_CODES]
-        self.code_spinner = Spinner(
-            text="+967 - اليمن", values=code_values,
-            font_name=AR, font_size=dp(12),
-            background_color=(0.1, 0.45, 0.91, 1)
-        )
-        code_box.add_widget(ar_label("مفتاح الدولة:", size=dp(12)))
+        code_box = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(5))
+        code_values = [c[0] + " " + c[1] for c in COUNTRY_CODES]
+        self.code_spinner = Spinner(text="+967 اليمن", values=code_values,
+                                    font_name=AR, font_size=dp(13),
+                                    background_color=(0.10, 0.45, 0.91, 1))
         code_box.add_widget(self.code_spinner)
-        scroll_inner.add_widget(code_box)
+        inner.add_widget(code_box)
 
-        self.phone_in = ar_input("رقم الهاتف (بدون المفتاح)")
-        self.phone_in.size_hint_y = None
-        self.phone_in.height = dp(45)
-        scroll_inner.add_widget(self.phone_in)
+        self.phone_in = ar_input("رقم الهاتف (بدون مفتاح الدولة)", dp(46))
+        inner.add_widget(self.phone_in)
 
-        self.email_in = ar_input("البريد الإلكتروني")
-        self.email_in.size_hint_y = None
-        self.email_in.height = dp(45)
-        scroll_inner.add_widget(self.email_in)
+        self.email_in = ar_input("البريد الإلكتروني (اختياري)", dp(46))
+        inner.add_widget(self.email_in)
 
-        self.address_in = ar_input("العنوان")
-        self.address_in.size_hint_y = None
-        self.address_in.height = dp(45)
-        scroll_inner.add_widget(self.address_in)
+        self.address_in = ar_input("العنوان / المدينة", dp(46))
+        inner.add_widget(self.address_in)
 
-        self.category_in = ar_input("التصنيف")
-        self.category_in.size_hint_y = None
-        self.category_in.height = dp(45)
-        scroll_inner.add_widget(self.category_in)
+        self.category_in = ar_input("التصنيف (مثال: إلكترونيات)", dp(46))
+        inner.add_widget(self.category_in)
 
-        self.notes_in = ar_input("ملاحظات")
-        self.notes_in.size_hint_y = None
-        self.notes_in.height = dp(45)
-        scroll_inner.add_widget(self.notes_in)
+        self.notes_in = ar_input("ملاحظات (اختياري)", dp(46))
+        inner.add_widget(self.notes_in)
 
-        save_btn = Button(
-            text="حفظ", font_name=AR, font_size=dp(18), bold=True,
-            size_hint_y=None, height=dp(55),
-            background_color=(0.1, 0.45, 0.91, 1), on_press=self.save_it
-        )
-        scroll_inner.add_widget(save_btn)
+        save_btn = Button(text="حفظ", font_name=AR, font_size=dp(18), bold=True,
+                          size_hint_y=None, height=dp(56),
+                          background_color=(0.10, 0.45, 0.91, 1))
+        save_btn.bind(on_press=self.save_it)
+        inner.add_widget(save_btn)
 
-        sv = ScrollView()
-        sv.add_widget(scroll_inner)
+        sv = ScrollView(bar_width=dp(4))
+        sv.add_widget(inner)
         root.add_widget(sv)
         self.add_widget(root)
+
+    def go_back(self, *a):
+        self.manager.current = "main"
 
     def clear_form(self):
         self.name_in.text = ""
@@ -449,97 +488,123 @@ class AddScreen(Screen):
         self.address_in.text = ""
         self.category_in.text = ""
         self.notes_in.text = ""
-        self.code_spinner.text = "+967 - اليمن"
+        self.code_spinner.text = "+967 اليمن"
 
     def save_it(self, *a):
         name = self.name_in.text.strip()
         if not name:
             return
-        code = self.code_spinner.text.split(" - ")[0].strip()
-        phone = self.phone_in.text.strip().replace(" ", "")
-        full_phone = f"{code}{phone}" if phone else ""
+        code = "+967"
+        try:
+            parts = self.code_spinner.text.split(" ", 1)
+            if parts:
+                code = parts[0].strip()
+        except Exception:
+            pass
+        phone = self.phone_in.text.strip().replace(" ", "").replace("-", "")
+        full_phone = (code + phone) if phone else ""
+        email = self.email_in.text.strip()
+        address = self.address_in.text.strip()
+        category = self.category_in.text.strip()
+        notes = self.notes_in.text.strip()
 
-        if self.editing_id:
-            update_contact(self.editing_id, name, full_phone,
-                           self.email_in.text.strip(), self.address_in.text.strip(),
-                           self.category_in.text.strip(), self.notes_in.text.strip())
-        else:
-            add_contact(name, full_phone, self.email_in.text.strip(),
-                        self.address_in.text.strip(), self.category_in.text.strip(),
-                        self.notes_in.text.strip())
+        try:
+            if self.editing_id:
+                update_contact(self.editing_id, name, full_phone, email, address, category, notes)
+            else:
+                add_contact(name, full_phone, email, address, category, notes)
+        except Exception:
+            pass
+        self.editing_id = None
         self.manager.current = "main"
 
     def on_enter(self):
         if self.editing_id:
-            for c in get_all():
-                if c["id"] == self.editing_id:
-                    self.name_in.text = c["name"]
-                    self.email_in.text = c["email"] or ""
-                    self.address_in.text = c["address"] or ""
-                    self.category_in.text = c["category"] or ""
-                    self.notes_in.text = c["notes"] or ""
-                    phone = c["phone"] or ""
-                    for code, eng, _ in COUNTRY_CODES:
-                        if phone.startswith(code):
-                            self.code_spinner.text = f"{code} - {COUNTRY_LABELS[eng]}"
-                            self.phone_in.text = phone[len(code):]
-                            break
-                    else:
-                        self.phone_in.text = phone
-                    break
+            try:
+                for c in get_all():
+                    if c["id"] == self.editing_id:
+                        self.name_in.text = c.get("name") or ""
+                        self.email_in.text = c.get("email") or ""
+                        self.address_in.text = c.get("address") or ""
+                        self.category_in.text = c.get("category") or ""
+                        self.notes_in.text = c.get("notes") or ""
+                        phone = c.get("phone") or ""
+                        matched = False
+                        for code, cname in COUNTRY_CODES:
+                            if phone.startswith(code):
+                                self.code_spinner.text = code + " " + cname
+                                self.phone_in.text = phone[len(code):]
+                                matched = True
+                                break
+                        if not matched:
+                            self.phone_in.text = phone
+                        break
+            except Exception:
+                pass
 
 
 class FTPScreen(Screen):
     def __init__(self, **kw):
         super().__init__(**kw)
-        root = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(6))
+        root = BoxLayout(orientation="vertical", padding=dp(10), spacing=dp(6))
 
         top = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(5))
-        top.add_widget(ar_btn("رجوع", (0.5, 0.5, 0.5, 1),
-                              lambda x: setattr(self.manager, "current", "main"), 0.3))
-        top.add_widget(ar_label("النسخ الاحتياطي", size=dp(18), bold=True, halign="center"))
+        top.add_widget(ar_btn("رجوع", (0.45, 0.45, 0.45, 1), self.go_back, 0.25))
+        ttl = ar_label("النسخ الاحتياطي FTP", size=dp(17), bold=True, halign="center")
+        top.add_widget(ttl)
         root.add_widget(top)
 
         cfg = load_config()
-        self.host_in = ar_input("عنوان الخادم (Host)")
+        self.host_in = ar_input("عنوان الخادم Host", dp(44))
         self.host_in.text = cfg.get("host", "")
         root.add_widget(self.host_in)
 
-        self.port_in = ar_input("المنفذ (Port)")
-        self.port_in.text = cfg.get("port", "21")
+        self.port_in = ar_input("المنفذ Port (افتراضي 21)", dp(44))
+        self.port_in.text = str(cfg.get("port", "21"))
         root.add_widget(self.port_in)
 
-        self.user_in = ar_input("اسم المستخدم")
+        self.user_in = ar_input("اسم المستخدم", dp(44))
         self.user_in.text = cfg.get("username", "")
         root.add_widget(self.user_in)
 
-        self.pass_in = ar_input("كلمة المرور")
+        self.pass_in = ar_input("كلمة المرور", dp(44))
         self.pass_in.password = True
         self.pass_in.text = cfg.get("password", "")
         root.add_widget(self.pass_in)
 
-        self.dir_in = ar_input("المجلد البعيد")
+        self.dir_in = ar_input("المجلد البعيد (مثال: /backup)", dp(44))
         self.dir_in.text = cfg.get("remote_dir", "/")
         root.add_widget(self.dir_in)
 
         btns = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(4))
-        btns.add_widget(ar_btn("اختبار", (0.5, 0.5, 0.5, 1), self.test_conn, 0.25))
-        btns.add_widget(ar_btn("نسخ احتياطي", (0.1, 0.45, 0.91, 1), self.do_backup, 0.25))
+        btns.add_widget(ar_btn("اختبار", (0.45, 0.45, 0.45, 1), self.test_conn, 0.25))
+        btns.add_widget(ar_btn("نسخ احتياطي", (0.10, 0.45, 0.91, 1), self.do_backup, 0.25))
         btns.add_widget(ar_btn("استعادة", (0.85, 0.19, 0.15, 1), self.do_restore, 0.25))
-        btns.add_widget(ar_btn("حفظ", (0.0, 0.6, 0.0, 1), self.save_cfg, 0.25))
+        btns.add_widget(ar_btn("حفظ", (0.0, 0.55, 0.15, 1), self.save_cfg, 0.25))
         root.add_widget(btns)
 
-        self.status = ar_label("", size=dp(12), color=(0.3, 0.3, 0.3, 1))
+        self.status = ar_label("", size=dp(12), color=(0.25, 0.25, 0.25, 1), halign="center")
         self.status.size_hint_y = None
-        self.status.height = dp(30)
+        self.status.height = dp(36)
         root.add_widget(self.status)
 
         self.add_widget(root)
 
+    def go_back(self, *a):
+        self.manager.current = "main"
+
     def _cfg(self):
+        port = "21"
+        try:
+            pv = self.port_in.text.strip()
+            if pv:
+                int(pv)
+                port = pv
+        except Exception:
+            pass
         return {
             "host": self.host_in.text.strip(),
-            "port": self.port_in.text.strip() or "21",
+            "port": port,
             "username": self.user_in.text.strip(),
             "password": self.pass_in.text.strip(),
             "remote_dir": self.dir_in.text.strip() or "/",
@@ -551,44 +616,56 @@ class FTPScreen(Screen):
 
     def test_conn(self, *a):
         cfg = self._cfg()
+        if not cfg["host"]:
+            self.status.text = "أدخل عنوان الخادم أولاً"
+            return
         try:
             ftp = ftplib.FTP()
-            ftp.connect(cfg["host"], int(cfg["port"]), timeout=10)
+            ftp.connect(cfg["host"], int(cfg["port"]), timeout=15)
             ftp.login(cfg["username"], cfg["password"])
             ftp.quit()
             self.status.text = "تم الاتصال بنجاح"
         except Exception as e:
-            self.status.text = f"خطأ: {str(e)}"
+            self.status.text = "خطأ: " + str(e)[:80]
 
     def do_backup(self, *a):
         cfg = self._cfg()
+        if not cfg["host"]:
+            self.status.text = "أدخل عنوان الخادم أولاً"
+            return
         try:
             ftp = ftplib.FTP()
-            ftp.connect(cfg["host"], int(cfg["port"]), timeout=10)
+            ftp.connect(cfg["host"], int(cfg["port"]), timeout=15)
             ftp.login(cfg["username"], cfg["password"])
             try:
                 ftp.cwd(cfg["remote_dir"])
-            except:
-                ftp.mkd(cfg["remote_dir"])
-                ftp.cwd(cfg["remote_dir"])
+            except Exception:
+                try:
+                    ftp.mkd(cfg["remote_dir"])
+                    ftp.cwd(cfg["remote_dir"])
+                except Exception:
+                    pass
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            fn = f"contacts_backup_{ts}.db"
+            fn = "contacts_backup_" + ts + ".db"
             with open(DB_FILE, "rb") as f:
-                ftp.storbinary(f"STOR {fn}", f)
+                ftp.storbinary("STOR " + fn, f)
             ftp.quit()
-            self.status.text = f"تم النسخ: {fn}"
+            self.status.text = "تم النسخ الاحتياطي بنجاح"
         except Exception as e:
-            self.status.text = f"خطأ: {str(e)}"
+            self.status.text = "خطأ: " + str(e)[:80]
 
     def do_restore(self, *a):
         cfg = self._cfg()
+        if not cfg["host"]:
+            self.status.text = "أدخل عنوان الخادم أولاً"
+            return
         try:
             ftp = ftplib.FTP()
-            ftp.connect(cfg["host"], int(cfg["port"]), timeout=10)
+            ftp.connect(cfg["host"], int(cfg["port"]), timeout=15)
             ftp.login(cfg["username"], cfg["password"])
             try:
                 ftp.cwd(cfg["remote_dir"])
-            except:
+            except Exception:
                 self.status.text = "المجلد غير موجود"
                 return
             files = []
@@ -602,30 +679,52 @@ class FTPScreen(Screen):
                         backups.append(fn)
             if not backups:
                 self.status.text = "لا توجد نسخ احتياطية"
-                ftp.quit()
+                try:
+                    ftp.quit()
+                except Exception:
+                    pass
                 return
             latest = sorted(backups)[-1]
-            temp = DB_FILE + ".restore_tmp"
+            temp = DB_FILE + ".tmp"
             with open(temp, "wb") as f:
-                ftp.retrbinary(f"RETR {latest}", f.write)
-            ftp.quit()
+                ftp.retrbinary("RETR " + latest, f.write)
+            try:
+                ftp.quit()
+            except Exception:
+                pass
             import shutil
             shutil.copy2(temp, DB_FILE)
-            os.remove(temp)
-            self.status.text = f"تمت الاستعادة: {latest}"
+            try:
+                os.remove(temp)
+            except Exception:
+                pass
+            self.status.text = "تمت الاستعادة بنجاح"
         except Exception as e:
-            self.status.text = f"خطأ: {str(e)}"
+            self.status.text = "خطأ: " + str(e)[:80]
 
 
 class ContactManagerApp(App):
     def build(self):
         self.title = "مدير جهات الاتصال"
-        init_db()
+        try:
+            init_db()
+        except Exception:
+            pass
         sm = ScreenManager()
         sm.add_widget(MainScreen(name="main"))
         sm.add_widget(AddScreen(name="add"))
         sm.add_widget(FTPScreen(name="ftp"))
+
+        Window.bind(on_keyboard=self.on_key)
+        self.sm = sm
         return sm
+
+    def on_key(self, window, key, *args):
+        if key == 27:
+            if self.sm.current != "main":
+                self.sm.current = "main"
+                return True
+        return False
 
 
 if __name__ == "__main__":
