@@ -703,6 +703,14 @@ class FTPScreen(Screen):
             self.status.text = "خطأ: " + str(e)[:80]
 
 
+def _save_crash(err_text):
+    try:
+        with open(os.path.join(BASE_DIR, "crash_log.txt"), "w", encoding="utf-8") as f:
+            f.write(err_text)
+    except Exception:
+        pass
+
+
 class ContactManagerApp(App):
     def build(self):
         self.title = "مدير جهات الاتصال"
@@ -710,10 +718,23 @@ class ContactManagerApp(App):
             init_db()
         except Exception:
             pass
-        sm = ScreenManager()
-        sm.add_widget(MainScreen(name="main"))
-        sm.add_widget(AddScreen(name="add"))
-        sm.add_widget(FTPScreen(name="ftp"))
+        try:
+            sm = ScreenManager()
+            sm.add_widget(MainScreen(name="main"))
+            sm.add_widget(AddScreen(name="add"))
+            sm.add_widget(FTPScreen(name="ftp"))
+        except Exception:
+            import traceback
+            err = traceback.format_exc()
+            _save_crash(err)
+            from kivy.uix.label import Label as _L
+            from kivy.uix.scrollview import ScrollView as _SV
+            box = BoxLayout()
+            sv = _SV()
+            lbl = _L(text=err[-2000:], color=(1, 0.2, 0.2, 1), font_name=AR, font_size="12sp")
+            sv.add_widget(lbl)
+            box.add_widget(sv)
+            return box
 
         Window.bind(on_keyboard=self.on_key)
         self.sm = sm
@@ -728,4 +749,12 @@ class ContactManagerApp(App):
 
 
 if __name__ == "__main__":
-    ContactManagerApp().run()
+    try:
+        ContactManagerApp().run()
+    except Exception:
+        import traceback
+        from kivy.base import runTouchApp
+        from kivy.uix.label import Label as _L
+        err = traceback.format_exc()
+        _save_crash(err)
+        runTouchApp(_L(text=err[-2000:], color=(1, 0.2, 0.2, 1), font_name=AR, font_size="12sp"))

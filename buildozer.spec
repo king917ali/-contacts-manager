@@ -12,7 +12,7 @@ android.permissions = INTERNET,CALL_PHONE
 android.api = 31
 android.minapi = 21
 android.ndk = 25
-android.arch = arm64-v8a
+android.arch = arm64-v8a,armeabi-v7a
 android.release_artifact = apk
 android.allow_backup = 1
 
